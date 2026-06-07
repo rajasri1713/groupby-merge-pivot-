@@ -1,0 +1,110 @@
+import pandas as pd
+import numpy as np
+
+# ── Sample Data ───────────────────────────────────────────────
+orders = pd.DataFrame({
+    'order_id':  [1, 2, 3, 4, 5, 6],
+    'cust_id':   [101, 102, 101, 103, 102, 101],
+    'category':  ['A', 'B', 'A', 'C', 'B', 'C'],
+    'month':     ['Jan', 'Jan', 'Feb', 'Feb', 'Jan', 'Feb'],
+    'sales':     [100, 200, 150, 300, 250, 400],
+    'qty':       [1, 2, 3, 1, 2, 4],
+})
+
+customers = pd.DataFrame({
+    'cust_id':  [101, 102, 103, 104],
+    'name':     ['Alice', 'Bob', 'Carol', 'Dave'],
+    'region':   ['North', 'South', 'North', 'East'],
+})
+
+# ══════════════════════════════════════════════════════════════
+# 1. GROUPBY
+# ══════════════════════════════════════════════════════════════
+
+# Single aggregation
+print("── Sales by Category ──")
+print(orders.groupby('category')['sales'].sum())
+
+# Multiple aggregations
+print("\n── Stats by Category ──")
+print(orders.groupby('category')['sales'].agg(['sum', 'mean', 'count']))
+
+# Multiple columns + multiple aggs
+print("\n── Sales & Qty by Category + Month ──")
+print(orders.groupby(['category', 'month']).agg(
+    total_sales=('sales', 'sum'),
+    avg_qty=('qty', 'mean')
+).reset_index())
+
+# ══════════════════════════════════════════════════════════════
+# 2. MERGE
+# ══════════════════════════════════════════════════════════════
+
+# Inner join
+inner = pd.merge(orders, customers, on='cust_id')
+print("\n── Inner Merge (orders + customers) ──")
+print(inner[['order_id', 'name', 'region', 'category', 'sales']])
+
+# Left join (keeps all orders, even if no matching customer)
+left = pd.merge(orders, customers, on='cust_id', how='left')
+
+# Outer join
+outer = pd.merge(orders, customers, on='cust_id', how='outer')
+
+print("\n── Outer Merge shape:", outer.shape)
+
+# ══════════════════════════════════════════════════════════════
+# 3. PIVOT TABLE
+# ══════════════════════════════════════════════════════════════
+
+print("\n── Pivot: Sales by Month vs Category ──")
+pivot = orders.pivot_table(
+    values='sales',
+    index='month',
+    columns='category',
+    aggfunc='sum',
+    fill_value=0,
+    margins=True,          # adds row/col totals
+    margins_name='Total'
+)
+print(pivot)
+
+print("\n── Pivot: Qty by Month vs Category ──")
+pivot_qty = orders.pivot_table(
+    values='qty',
+    index='month',
+    columns='category',
+    aggfunc='sum',
+    fill_value=0
+)
+print(pivot_qty)
+
+# ══════════════════════════════════════════════════════════════
+# 4. COMBINED — GroupBy → Merge → Pivot
+# ══════════════════════════════════════════════════════════════
+
+# Step 1: GroupBy — summarize orders per customer
+cust_summary = (
+    orders.groupby('cust_id')
+    .agg(total_sales=('sales', 'sum'), total_qty=('qty', 'sum'))
+    .reset_index()
+)
+
+# Step 2: Merge — enrich with customer info
+enriched = pd.merge(cust_summary, customers, on='cust_id', how='left')
+print("\n── Enriched Customer Summary ──")
+print(enriched)
+
+# Step 3: Pivot — sales by region vs category (from full merged df)
+full = pd.merge(orders, customers, on='cust_id')
+print("\n── Pivot: Sales by Region vs Category ──")
+final_pivot = full.pivot_table(
+    values='sales',
+    index='region',
+    columns='category',
+    aggfunc='sum',
+    fill_value=0,
+    margins=True,
+    margins_name='Total'
+)
+print(final_pivot)
